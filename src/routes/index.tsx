@@ -189,8 +189,8 @@ function Index() {
           <ul className="space-y-2 text-xs text-muted-foreground">
             <li className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-data-qubit" /> Data qubit</li>
             <li className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-x-error" /> X-error</li>
-            <li className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-measure-qubit" /> Measure qubit</li>
-            <li className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-syndrome" /> Odd parity syndrome</li>
+            <li className="flex items-center gap-2"><span className="h-3 w-3 rounded-md bg-measure-qubit" /> Measure qubit</li>
+            <li className="flex items-center gap-2"><span className="h-3 w-3 rounded-md bg-syndrome" /> Odd parity syndrome</li>
             <li className="flex items-center gap-2"><span className="h-0.5 w-4 bg-match" /> MWPM pair (dashed = boundary)</li>
           </ul>
         </aside>
