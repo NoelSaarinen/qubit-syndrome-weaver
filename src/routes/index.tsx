@@ -156,6 +156,7 @@ function Index() {
   }, [errors]);
   const litSet = useMemo(() => new Set(lit.map((p) => key(p.r, p.c))), [lit]);
   const { pairs, boundary } = useMemo(() => match(lit), [lit]);
+  const smartResult = useMemo(() => smartMatch(lit, errors), [lit, errors]);
 
   const size = N * CELL;
   const cx = (p: P) => p.c * CELL + CELL / 2;
@@ -220,14 +221,31 @@ function Index() {
                     <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
                   </filter>
                 </defs>
-                {pairs.map(([a, b], i) => (
-                  <line key={`p${i}`} x1={cx(a)} y1={cy(a)} x2={cx(b)} y2={cy(b)}
-                    className="stroke-match animate-in fade-in duration-500" strokeWidth={4} strokeLinecap="round" filter="url(#glow)" />
-                ))}
-                {boundary.map(([a, b], i) => (
-                  <line key={`b${i}`} x1={cx(a)} y1={cy(a)} x2={cx(b)} y2={cy(b)}
-                    className="stroke-match animate-in fade-in duration-500" strokeWidth={3} strokeDasharray="6 6" strokeLinecap="round" filter="url(#glow)" />
-                ))}
+                {smart ? (
+                  <>
+                    {smartResult.paths.map((path, i) => (
+                      <polyline key={`sp${i}`} points={path.map((p) => `${cx(p)},${cy(p)}`).join(" ")} fill="none"
+                        className="stroke-green-400 drop-shadow-[0_0_6px_rgb(74_222_128)] animate-in fade-in duration-500"
+                        strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" filter="url(#glow)" />
+                    ))}
+                    {smartResult.boundary.map((path, i) => (
+                      <polyline key={`sb${i}`} points={path.map((p) => `${cx(p)},${cy(p)}`).join(" ")} fill="none"
+                        className="stroke-green-400 drop-shadow-[0_0_6px_rgb(74_222_128)] animate-in fade-in duration-500"
+                        strokeWidth={5} strokeDasharray="8 6" strokeLinecap="round" strokeLinejoin="round" filter="url(#glow)" />
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    {pairs.map(([a, b], i) => (
+                      <line key={`p${i}`} x1={cx(a)} y1={cy(a)} x2={cx(b)} y2={cy(b)}
+                        className="stroke-match animate-in fade-in duration-500" strokeWidth={4} strokeLinecap="round" filter="url(#glow)" />
+                    ))}
+                    {boundary.map(([a, b], i) => (
+                      <line key={`b${i}`} x1={cx(a)} y1={cy(a)} x2={cx(b)} y2={cy(b)}
+                        className="stroke-match animate-in fade-in duration-500" strokeWidth={3} strokeDasharray="6 6" strokeLinecap="round" filter="url(#glow)" />
+                    ))}
+                  </>
+                )}
               </svg>
             )}
           </div>
@@ -247,6 +265,10 @@ function Index() {
             Show Error Correction
             <Switch checked={showCorrection} onCheckedChange={setShowCorrection} />
           </label>
+          <label className={`flex items-center justify-between text-sm transition-opacity ${showCorrection ? "" : "opacity-40"}`}>
+            Smart Matching (Weighted)
+            <Switch checked={smart} disabled={!showCorrection} onCheckedChange={setSmart} />
+          </label>
           <Button variant="outline" className="w-full" onClick={() => setErrors(new Set())}>Reset</Button>
 
           <div className="grid grid-cols-2 gap-3 text-xs">
@@ -255,11 +277,12 @@ function Index() {
           </div>
 
           <ul className="space-y-2 text-xs text-muted-foreground">
-            <li className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-data-qubit" /> Data qubit</li>
-            <li className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-x-error" /> X-error</li>
-            <li className="flex items-center gap-2"><span className="h-3 w-3 rounded-md bg-measure-qubit" /> Measure qubit</li>
-            <li className="flex items-center gap-2"><span className="h-3 w-3 rounded-md bg-syndrome" /> Odd parity syndrome</li>
-            <li className="flex items-center gap-2"><span className="h-0.5 w-4 bg-match" /> MWPM pair (dashed = boundary)</li>
+            <li className="flex items-center gap-2"><span className="inline-block h-3.5 w-3.5 shrink-0 rounded-full bg-data-qubit" /> Data qubit</li>
+            <li className="flex items-center gap-2"><span className="inline-block h-3.5 w-3.5 shrink-0 rounded-full bg-x-error" /> X-error</li>
+            <li className="flex items-center gap-2"><span className="inline-block h-3.5 w-3.5 shrink-0 rounded-[3px] bg-measure-qubit" /> Measure qubit</li>
+            <li className="flex items-center gap-2"><span className="inline-block h-3.5 w-3.5 shrink-0 rounded-[3px] bg-syndrome" /> Odd parity syndrome</li>
+            <li className="flex items-center gap-2"><span className="inline-block h-0.5 w-4 shrink-0 bg-match" /> Basic MWPM pair (dashed = boundary)</li>
+            <li className="flex items-center gap-2"><span className="inline-block h-1 w-4 shrink-0 bg-green-400" /> Smart decoder error chain</li>
           </ul>
         </aside>
       </main>
