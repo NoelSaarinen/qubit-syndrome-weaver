@@ -43,14 +43,14 @@ function match(lit: P[]) {
   for (const e of edges) {
     if (used.has(e.a) || used.has(e.b)) continue;
     used.add(e.a); used.add(e.b);
-    pairs.push([lit[e.a], lit[e.b]]);
+    pairs.push([lit[e.a]!, lit[e.b]!]);
   }
   const boundary: [P, P][] = [];
   lit.forEach((p, i) => {
     if (used.has(i)) return;
     const opts: P[] = [{ r: -0.6, c: p.c }, { r: N - 0.4, c: p.c }, { r: p.r, c: -0.6 }, { r: p.r, c: N - 0.4 }];
     opts.sort((a, b) => dist(a, p) - dist(b, p));
-    boundary.push([p, opts[0]]);
+    boundary.push([p, opts[0]!]);
   });
   return { pairs, boundary };
 }
@@ -172,7 +172,7 @@ function Index() {
               <span>Noise Injection</span>
               <span className="text-primary">{rate}%</span>
             </div>
-            <Slider min={0} max={20} step={1} value={[rate]} onValueChange={(v) => setRate(v[0])} />
+            <Slider min={0} max={20} step={1} value={[rate]} onValueChange={(v) => setRate(v[0] ?? 0)} />
             <Button className="w-full" onClick={simulate}>Simulate Noise</Button>
           </div>
           <label className="flex items-center justify-between text-sm">
