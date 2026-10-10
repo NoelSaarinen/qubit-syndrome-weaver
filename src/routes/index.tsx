@@ -36,7 +36,7 @@ function match(lit: P[]) {
   const dist = (a: P, b: P) => Math.abs(a.r - b.r) + Math.abs(a.c - b.c);
   const edges: { a: number; b: number; d: number }[] = [];
   for (let i = 0; i < lit.length; i++)
-    for (let j = i + 1; j < lit.length; j++) edges.push({ a: i, b: j, d: dist(lit[i], lit[j]) });
+    for (let j = i + 1; j < lit.length; j++) edges.push({ a: i, b: j, d: dist(lit[i]!, lit[j]!) });
   edges.sort((x, y) => x.d - y.d);
   const used = new Set<number>();
   const pairs: [P, P][] = [];
