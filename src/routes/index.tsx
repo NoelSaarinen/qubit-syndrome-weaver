@@ -55,70 +55,112 @@ function match(lit: P[]) {
   return { pairs, boundary };
 }
 
-// Weighted Dijkstra over the lattice: stepping onto an errored data qubit is cheap,
-// so shortest paths follow the physical error chain.
-function dijkstra(src: P, errors: Set<string>) {
-  const cost = (p: P) => (isData(p.r, p.c) ? (errors.has(key(p.r, p.c)) ? 0.1 : 1) : 0.05);
-  const dist = new Map<string, number>([[key(src.r, src.c), 0]]);
-  const prev = new Map<string, P>();
+// Smart decoder: Dijkstra on the graph of Measure Qubits. Two measure qubits are
+// connected through each shared data qubit; crossing an errored data qubit costs 1,
+// a clean one costs 10. Border data qubits also connect to a virtual BOUNDARY node.
+const BASE = 10, ERR = 1, BOUNDARY = "B";
+type Step = { to: string; via: P; cost: number };
+
+function buildGraph(errors: Set<string>) {
+  const g = new Map<string, Step[]>();
+  const add = (a: string, s: Step) => { if (!g.has(a)) g.set(a, []); g.get(a)!.push(s); };
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (!isData(r, c)) continue;
+    const cost = errors.has(key(r, c)) ? ERR : BASE;
+    const ms = neighbors(r, c);
+    for (const a of ms) for (const b of ms) if (a !== b) add(key(a.r, a.c), { to: key(b.r, b.c), via: { r, c }, cost });
+    if (ms.length < 4) for (const a of ms) add(key(a.r, a.c), { to: BOUNDARY, via: { r, c }, cost });
+  }
+  return g;
+}
+
+function shortest(src: string, g: Map<string, Step[]>) {
+  const dist = new Map<string, number>([[src, 0]]);
+  const prev = new Map<string, { from: string; via: P }>();
   const done = new Set<string>();
-  const all: P[] = [];
-  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) all.push({ r, c });
   while (true) {
-    let best: P | null = null, bd = Infinity;
-    for (const p of all) {
-      const k = key(p.r, p.c), d = dist.get(k);
-      if (!done.has(k) && d !== undefined && d < bd) { bd = d; best = p; }
-    }
-    if (!best) break;
-    done.add(key(best.r, best.c));
-    for (const n of neighbors(best.r, best.c)) {
-      const nk = key(n.r, n.c), nd = bd + cost(n);
-      if (nd < (dist.get(nk) ?? Infinity)) { dist.set(nk, nd); prev.set(nk, best); }
+    let u: string | null = null, bd = Infinity;
+    for (const [k, d] of dist) if (!done.has(k) && d < bd) { bd = d; u = k; }
+    if (u === null) break;
+    done.add(u);
+    if (u === BOUNDARY) continue; // boundary is a sink
+    for (const s of g.get(u) ?? []) {
+      const nd = bd + s.cost;
+      if (nd < (dist.get(s.to) ?? Infinity)) { dist.set(s.to, nd); prev.set(s.to, { from: u, via: s.via }); }
     }
   }
-  const pathTo = (t: P) => {
-    const out: P[] = [t];
+  const toP = (k: string): P => { const [r, c] = k.split(",").map(Number); return { r: r!, c: c! }; };
+  const pathTo = (t: string): P[] => {
+    const pts: P[] = [];
     let cur = t;
-    while (key(cur.r, cur.c) !== key(src.r, src.c)) { const p = prev.get(key(cur.r, cur.c)); if (!p) break; out.unshift(p); cur = p; }
-    return out;
+    while (cur !== src) {
+      const p = prev.get(cur);
+      if (!p) break;
+      if (cur === BOUNDARY) {
+        const v = p.via, m = toP(p.from);
+        pts.unshift({ r: v.r + (v.r - m.r) * 0.6, c: v.c + (v.c - m.c) * 0.6 });
+      } else pts.unshift(toP(cur));
+      // route through the data qubit along grid lines (L-shape if diagonal neighbours)
+      const m = toP(p.from), v = p.via;
+      pts.unshift(v);
+      if (m.r !== v.r && m.c !== v.c) pts.unshift({ r: m.r, c: v.c });
+      cur = p.from;
+    }
+    pts.unshift(toP(src));
+    return pts;
   };
   return { dist, pathTo };
 }
 
 function smartMatch(lit: P[], errors: Set<string>) {
-  const runs = lit.map((p) => dijkstra(p, errors));
-  const edges: { a: number; b: number; d: number }[] = [];
-  for (let i = 0; i < lit.length; i++)
-    for (let j = i + 1; j < lit.length; j++)
-      edges.push({ a: i, b: j, d: runs[i]!.dist.get(key(lit[j]!.r, lit[j]!.c)) ?? Infinity });
-  // boundary option per syndrome: cheapest edge cell
-  const bnd = lit.map((_, i) => {
-    let best: P = lit[i]!, bd = Infinity;
-    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-      if (r !== 0 && c !== 0 && r !== N - 1 && c !== N - 1) continue;
-      const d = runs[i]!.dist.get(key(r, c)) ?? Infinity;
-      if (d < bd) { bd = d; best = { r, c }; }
+  const g = buildGraph(errors);
+  const ks = lit.map((p) => key(p.r, p.c));
+  const runs = ks.map((k) => shortest(k, g));
+  const n = lit.length;
+  const pd = (i: number, j: number) => runs[i]!.dist.get(ks[j]!) ?? Infinity;
+  const bd = (i: number) => runs[i]!.dist.get(BOUNDARY) ?? Infinity;
+  // choice[i] = j (pair) or -1 (boundary)
+  const choice = new Array<number>(n).fill(-1);
+  if (n <= 18) {
+    // exact minimum-weight perfect matching (with boundary) via bitmask DP
+    const memo = new Map<number, number>();
+    const pick = new Map<number, number>();
+    const solve = (mask: number): number => {
+      if (mask === (1 << n) - 1) return 0;
+      const m = memo.get(mask); if (m !== undefined) return m;
+      let i = 0; while (mask & (1 << i)) i++;
+      let best = bd(i) + solve(mask | (1 << i)), bj = -1;
+      for (let j = i + 1; j < n; j++) if (!(mask & (1 << j))) {
+        const v = pd(i, j) + solve(mask | (1 << i) | (1 << j));
+        if (v < best) { best = v; bj = j; }
+      }
+      memo.set(mask, best); pick.set(mask, bj);
+      return best;
+    };
+    solve(0);
+    let mask = 0;
+    while (mask !== (1 << n) - 1) {
+      let i = 0; while (mask & (1 << i)) i++;
+      const j = pick.get(mask)!;
+      choice[i] = j; if (j >= 0) choice[j] = i;
+      mask |= (1 << i) | (j >= 0 ? 1 << j : 0);
     }
-    return { cell: best, d: bd + 0.5 };
-  });
-  edges.sort((x, y) => x.d - y.d);
-  const used = new Set<number>();
-  const paths: P[][] = [];
-  const boundary: P[][] = [];
-  for (const e of edges) {
-    if (used.has(e.a) || used.has(e.b)) continue;
-    if (e.d > bnd[e.a]!.d + bnd[e.b]!.d) continue; // cheaper to send both to boundary
-    used.add(e.a); used.add(e.b);
-    paths.push(runs[e.a]!.pathTo(lit[e.b]!));
+  } else {
+    const edges: { a: number; b: number; d: number }[] = [];
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) edges.push({ a: i, b: j, d: pd(i, j) });
+    edges.sort((x, y) => x.d - y.d);
+    const used = new Set<number>();
+    for (const e of edges) {
+      if (used.has(e.a) || used.has(e.b) || e.d > bd(e.a) + bd(e.b)) continue;
+      used.add(e.a); used.add(e.b); choice[e.a] = e.b; choice[e.b] = e.a;
+    }
   }
-  lit.forEach((_, i) => {
-    if (used.has(i)) return;
-    const cell = bnd[i]!.cell;
-    const path = runs[i]!.pathTo(cell);
-    const off: P = cell.r === 0 ? { r: -0.6, c: cell.c } : cell.r === N - 1 ? { r: N - 0.4, c: cell.c } : cell.c === 0 ? { r: cell.r, c: -0.6 } : { r: cell.r, c: N - 0.4 };
-    boundary.push([...path, off]);
-  });
+  const paths: P[][] = [], boundary: P[][] = [];
+  for (let i = 0; i < n; i++) {
+    const j = choice[i]!;
+    if (j === -1) boundary.push(runs[i]!.pathTo(BOUNDARY));
+    else if (j > i) paths.push(runs[i]!.pathTo(ks[j]!));
+  }
   return { paths, boundary };
 }
 
