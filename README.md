@@ -1,52 +1,14 @@
 # Qubit Syndrome Weaver
 
-Build a modern React web application that visualizes a Quantum Error Correction (QEC) Surface Code topology. Please implement this carefully by following these three core requirements:
+**Live Demo:** [https://qubit-syndrome-weaver.lovable.app](https://qubit-syndrome-weaver.lovable.app)
 
-1. UI & TOPOLOGY (The Grid)
+## What is this?
+This is an interactive Quantum Error Correction (QEC) simulator. It visually demonstrates the critical difference between basic Minimum Weight Perfect Matching (MWPM) and advanced **Weighted Graph Decoding** when handling complex error chains in a Surface Code topology. 
 
-- Create a 7x7 grid UI that behaves like a checkerboard with two distinct types of nodes.
+The goal of this project is to highlight the software bottlenecks in scaling fault-tolerant quantum computers, specifically how naive decoding algorithms can cause Logical Errors.
 
-- "Data Qubits": Represented as circles (default color: slate-200). These hold the quantum state.
-
-- "Measure Qubits" (Syndromes): Represented as squares (default color: slate-300). These sit between Data Qubits.
-
-- Use a dark-mode, futuristic UI with Tailwind CSS. Add a top header: "QEC Surface Code Simulator".
-
-2. PHYSICS LOGIC (Errors & Syndromes)
-
-- When a user clicks on any Data Qubit, toggle an "X-Error" (Bit-flip) and change its color to bright orange.
-
-- A Measure Qubit must constantly check the state of its immediate top, bottom, left, and right Data Qubit neighbors.
-
-- If an ODD number (1 or 3) of its neighbors have an X-Error, the Measure Qubit "lights up" (changes color to bright red). If EVEN (0, 2, or 4), it stays normal.
-
-3. AUTOMATION & ALGORITHM (Matching)
-
-- Add a control panel with a "Noise Injection" slider (Error Rate: 0% to 20%) and a "Simulate Noise" button. When clicked, randomly apply X-Errors to Data Qubits based on the probability.
-
-- Add a "Show Error Correction" toggle switch. When ON, simulate a basic Minimum Weight Perfect Matching (MWPM) by finding pairs of "lit up" Measure Qubits and drawing a glowing SVG line between the closest pairs.
-
-- Add a "Reset" button to clear all errors. Ensure smooth CSS transitions.
-
-This project was built with [Lovable](https://lovable.dev).
-
-**Live app**: https://qubit-syndrome-weaver.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/d216d271-a21e-4c57-a90c-90783c3af5a9).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
-```
+## How to Use the Simulator
+1. **Inject Noise:** Use the "Noise Injection" slider to simulate ambient hardware noise, or manually click on the white "Data Qubits" (circles) to trigger X-errors (orange).
+2. **Observe Syndromes:** Notice how the intermediate "Measure Qubits" (squares) light up red when they detect an odd parity change.
+3. **Test Basic Decoding:** Turn on **"Show Error Correction"**. The simulator will attempt to pair the red syndromes using basic Euclidean distance (blue lines). Notice how it often makes mistakes (drawing crossing lines or ignoring the actual error path).
+4. **Test Smart Decoding:** Turn on **"Smart Matching (Weighted)"**. The algorithm switches to an advanced pathfinding mode that routes directly through the existing X-errors (green lines). This accurately reconstructs the physical error chain and prevents logical errors.
